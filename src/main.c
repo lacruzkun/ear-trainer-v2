@@ -69,13 +69,18 @@ void draw_entry(Entry *e) {
       }
     }
   }
+  Vector2 text_size = MeasureTextEx(GetFontDefault(), e->text, 14, 1);
 
   DrawRectangleLinesEx(e->bound, 1, e->color);
-  DrawLineEx((Vector2){cursor_pos.x, cursor_pos.y + 5},
-             (Vector2){cursor_pos.x, cursor_pos.y + e->bound.height - 5}, 1,
-             CURSOR_COLOR);
+  DrawLineEx(
+      (Vector2){cursor_pos.x + text_size.x, cursor_pos.y + 5},
+      (Vector2){cursor_pos.x + text_size.x, cursor_pos.y + e->bound.height - 5},
+      1, CURSOR_COLOR);
 
-  DrawText(e->text, e->bound.x, e->bound.y, 14, ENTRY_TEXT_COLOR);
+  DrawTextEx(GetFontDefault(), e->text,
+             (Vector2){e->bound.x,
+                       e->bound.y + (e->bound.height / 2) - (text_size.y / 2)},
+             14, 1, ENTRY_TEXT_COLOR);
 }
 
 Button create_button() {
