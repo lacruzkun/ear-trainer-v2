@@ -5,4 +5,7 @@ INC_SRC = $(wildcard  $(SRC_DIR)/*.c)
 CC = clang
 
 ear_trainer: src/main.c
-	$(CC) $(CFLAGS) -Llib -Iinclude $(INC_SRC) src/main.c -o build/ear_trainer $(LIBS)
+	$(CC) $(CFLAGS) -Llib -Iinclude src/main.c -o build/ear_trainer $(LIBS)
+
+test_ui: src/test_ui.c
+	$(CC) $(CFLAGS) -Llib -Iinclude src/test_ui.c -o build/test_ui $(LIBS)
