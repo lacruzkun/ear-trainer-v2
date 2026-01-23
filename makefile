@@ -1,4 +1,4 @@
-CFLAGS = -Wall  -ggdb  
+CFLAGS = -Wall  -ggdb  -Wextra
 LIBS = -lraylib -lGL -lm -lpthread
 SRC_DIR = include
 INC_SRC = $(wildcard  $(SRC_DIR)/*.c)
