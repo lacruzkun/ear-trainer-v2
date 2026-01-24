@@ -45,6 +45,7 @@ typedef enum {
   SMPTE_OFFSET = 0x54,
   TIME_SIGNATURE = 0x58,
   KEY_SIGNATURE = 0x59,
+  DEVICE_PORT_NAME = 0x09,
 } MetaEventType;
 
 typedef enum {
@@ -157,7 +158,7 @@ u64 file_read_variable_length(FILE *file) {
  * 2 bytes, number of divisions, then a list of events*/
 
 void file_read_event(FILE *file, u64 delta_time, u32 status) {
-  if (status & 0xF0) {
+  if (status & 0xF0 == 0xF0) {
     if (status == 0xFF) {
 
       // meta event
@@ -167,44 +168,37 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         u64 length = file_read_variable_length(file);
         char *data = file_read_string(length, file);
         printf("%-20s %-20s text: %-20s\n", "META EVENT", "TEXT EVENT", data);
-
       } break;
       case COPYRIGHT: {
         u64 length = file_read_variable_length(file);
         char *data = file_read_string(length, file);
         printf("%-20s %-20s text: %-20s\n", "META EVENT", "COPYRIGHT", data);
-
       } break;
       case TRACK_NAME: {
         u64 length = file_read_variable_length(file);
         char *data = file_read_string(length, file);
         printf("%-20s %-20s text: %-20s\n", "META EVENT", "TRACK NAME", data);
-
       } break;
       case INST_NAME: {
         u64 length = file_read_variable_length(file);
         char *data = file_read_string(length, file);
         printf("%-20s %-20s text: %-20s\n", "META EVENT", "INSTURMENT NAME",
                data);
-
       } break;
       case LYRIC: {
         u64 length = file_read_variable_length(file);
         char *data = file_read_string(length, file);
         printf("%-20s %-20s text: %-20s\n", "META EVENT", "LYRICS", data);
-
       } break;
       case MARKER: {
         u64 length = file_read_variable_length(file);
         char *data = file_read_string(length, file);
         printf("%-20s %-20s text: %-20s\n", "META EVENT", "MARKER", data);
-
       } break;
       case CUE_POINT: {
         u64 length = file_read_variable_length(file);
         char *data = file_read_string(length, file);
         printf("%-20s %-20s text: %-20s\n", "META EVENT", "CUE POINT", data);
-
       } break;
       case SEQUENCE_NUMBER: {
         u8 length = file_read_u8(file);
@@ -212,7 +206,6 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         u8 number = file_read_u8(file);
         printf("%-20s %-20s number: %02x\n", "META EVENT", "SEQUENCE NUMBER",
                number);
-
       } break;
       case CHANNEL_PREFIX: {
         u8 length = file_read_u8(file);
@@ -220,14 +213,12 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         u8 channel = file_read_u8(file);
         printf("%-20s %-20s channel: %02x\n", "META EVENT", "CHANNEL PREFIX",
                channel);
-
       } break;
       case END_OF_TRACK: {
         u8 length = file_read_u8(file);
         assert(length == 0x00);
         printf("%-20s %-20s\n", "META EVENT", "END OF TRACK");
         end_of_track = true;
-
       } break;
       case SET_TEMPO: {
         u8 length = file_read_u8(file);
@@ -237,7 +228,6 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         u8 LSB = file_read_u8(file);
         printf("%-20s %-20s MSB: %02x, byte: %02x, LSB: %02x\n", "META EVENT",
                "SET TEMPO", MSB, byte, LSB);
-
       } break;
       case SMPTE_OFFSET: {
         u8 length = file_read_u8(file);
@@ -250,7 +240,6 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         printf("%-20s %-20s hour: %02x, minute: %02x, sec: %02x, frame: %02x, "
                "frac: %02x\n",
                "META EVENT", "SMPTE_OFFSET", hour, minute, sec, frame, frac);
-
       } break;
       case TIME_SIGNATURE: {
         u8 length = file_read_u8(file);
@@ -261,7 +250,6 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         u8 byte = file_read_u8(file);
         printf("%-20s %-20s num: %02x, den: %02x, clock: %02x, byte: %02x\n",
                "META EVENT", "TIME_SIGNATURE", num, den, clock, byte);
-
       } break;
       case KEY_SIGNATURE: {
         u8 length = file_read_u8(file);
@@ -271,7 +259,14 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         printf("%-20s %-20s sf: %02x, mi: %02x\n", "META EVENT",
                "KEY_SIGNATURE", sf, mi);
       } break;
+      case DEVICE_PORT_NAME: {
+        u8 length = file_read_u8(file);
+        char *data = file_read_string(length, file);
+        printf("%-20s %-20s Device port name: %-20s\n", "META EVENT",
+               "DEVICE_PORT_NAME", data);
+      } break;
       }
+
     } else {
       // common system event
 
@@ -282,7 +277,6 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         u64 data = file_read_byte(length, file);
         printf("%-20s %-20s  data: %02x\n", "COMMON SYSTEM EVENT",
                "SYS_EXCLUSIVE", data);
-
       } break;
       case TIME_CODE_QUARTER_FRAME: {
         u8 length = file_read_u8(file);
@@ -300,7 +294,6 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
         u8 MSB = file_read_u8(file);
         printf("%-20s %-20s  LSB: %02x MSB: %02x\n", "COMMON SYSTEM EVENT",
                "SONG_POSITION_POINTER", LSB, MSB);
-
       } break;
       case SONG_SELECT: {
         u8 length = file_read_u8(file);
@@ -319,60 +312,52 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
       } break;
       }
     }
+
   } else {
     // basic events
+    u8 channel = status & 0x0F;
+    printf("%-20s %02x\n", "CHANNEL", channel);
     switch (status >> 4) {
+
     case NOTE_OFF: {
-      u8 data = file_read_u8(file);
-      u8 note = data >> 4;
-      u8 velocity = data & 0x0F;
+      u8 note = file_read_u8(file);
+      u8 velocity = file_read_u8(file);
       printf("%-20s %-20s  note: %02x velocity: %02x\n", "BASIC MIDI EVENT",
              "NOTE OFF", note, velocity);
-
     } break;
     case NOTE_ON: {
-      u8 data = file_read_u8(file);
-      u8 note = data >> 4;
-      u8 velocity = data & 0x0F;
+      u8 note = file_read_u8(file);
+      u8 velocity = file_read_u8(file);
       printf("%-20s %-20s  note: %02x velocity: %02x\n", "BASIC MIDI EVENT",
              "NOTE ON", note, velocity);
-
     } break;
     case POLY_KEY_PRESSURE: {
-      u8 data = file_read_u8(file);
-      u8 note = data >> 4;
-      u8 pressure = data & 0x0F;
+      u8 note = file_read_u8(file);
+      u8 pressure = file_read_u8(file);
       printf("%-20s %-20s  note: %02x pressure: %02x\n", "BASIC MIDI EVENT",
              "POLY_KEY_PRESSURE", note, pressure);
-
     } break;
     case CTRL_CHANGE: {
-      u8 data = file_read_u8(file);
-      u8 control = data >> 4;
-      u8 value = data & 0x0F;
+      u8 control = file_read_u8(file);
+      u8 value = file_read_u8(file);
       printf("%-20s %-20s  control: %02x value: %02x\n", "BASIC MIDI EVENT",
              "CTRL_CHANGE", control, value);
-
     } break;
     case PROG_CHANGE: {
       u8 program = file_read_u8(file);
       printf("%-20s %-20s  program: %02x\n", "BASIC MIDI EVENT", "PROG_CHANGE",
              program);
-
     } break;
     case CHANNEL_PRESSURE: {
       u8 pressure = file_read_u8(file);
       printf("%-20s %-20s  pressure: %02x\n", "BASIC MIDI EVENT",
              "CHANNEL_PRESSURE", pressure);
-
     } break;
     case PITCH_WHEEL: {
-      u8 data = file_read_u8(file);
-      u8 LSB = data >> 4;
-      u8 MSB = data & 0x0F;
+      u8 LSB = file_read_u8(file);
+      u8 MSB = file_read_u8(file);
       printf("%-20s %-20s  LSB: %02x MSB: %02x\n", "BASIC MIDI EVENT",
              "PITCH_WHEEL", LSB, MSB);
-
     } break;
     default:
       file_read_u8(file);
@@ -405,9 +390,9 @@ void parse_midi(const char *file_path) {
       u8 running_status = 0;
       while ((ftell(midi_file) < chunk_end)) {
         u64 delta_time = file_read_variable_length(midi_file);
-        printf("%-20s %02x\n", "EVENT TIME", delta_time);
-        printf("Current cursor byte %i\n", ftell(midi_file));
-        printf("chunk end  byte %i\n", chunk_end);
+        // printf("%-20s %02x\n", "EVENT TIME", delta_time);
+        // printf("Current cursor byte %i\n", ftell(midi_file));
+        // printf("chunk end  byte %i\n", chunk_end);
 
         u8 next_byte = file_peek_u8(midi_file);
 
@@ -453,6 +438,7 @@ void draw_midi_grid() {
 int main() {
   char midi_file_path[512] = {0};
   const char *file_path = "../resources/Super Mario 64 - Medley.mid";
+  // const char *file_path = "../resources/no name.mid";
   strcat(midi_file_path, GetApplicationDirectory());
   strcat(midi_file_path, file_path);
   printf("%s\n", midi_file_path);
