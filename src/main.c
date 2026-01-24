@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
@@ -22,6 +23,8 @@
  *
  * 16 channels each has 128 notes from 0 representing C at -1 octave
  */
+
+//
 
 typedef unsigned int u32;
 typedef unsigned long long u64;
@@ -66,6 +69,137 @@ typedef enum {
   TUNE_REQUEST = 0xF6,
   SYS_EXCLUSIVE_END = 0xF7,
 } CommonSysEventType;
+
+typedef enum {
+  SYS_EVENT,
+  BASIC_EVENT,
+  META_EVENT,
+} MidiEventType;
+
+typedef struct {
+  MidiEventType event_type;
+  u8 status;
+  union {
+    char *text;
+    u8 number;
+    u8 position;
+    u8 data;
+    u8 channel;
+    u32 tempo;
+    struct smpte_offset {
+      u8 hout;
+      u8 minute;
+      u8 sec;
+      u8 frame;
+      u8 frac;
+    } smpte_offset;
+
+    struct time_signature {
+      u8 num;
+      u8 den;
+      u8 clock;
+      u8 byte;
+    } time_signature;
+
+    struct key_signature {
+      u8 sf;
+      u8 mi;
+    } key_signature;
+
+    u64 sys_exclusiv;
+
+    struct time_code {
+      u8 data;
+      u8 type;
+      u8 value;
+    } time_code;
+
+    struct song_pos {
+      u8 LSB;
+      u8 MSB;
+    } song_pos;
+
+    struct pitch_wheel {
+      u8 LSB;
+      u8 MSB;
+    } pitch_wheel;
+
+    struct note {
+      u8 note;
+      u8 velocity;
+    } note;
+
+    struct pressure {
+      u8 note;
+      u8 pressure;
+    } pressure;
+
+    struct ctrl_change {
+      u8 control;
+      u8 value;
+    } ctrl_change;
+
+    u8 program;
+  } value;
+} EventValue;
+
+// node
+typedef struct {
+  // key
+  u64 delta_time;
+  // value
+  EventValue *event_value;
+  bool occupied;
+} MidiEvent;
+
+typedef struct {
+  // hashmap
+  MidiEvent *events;
+  u32 size;
+  u32 capacity;
+  u32 delta_time;
+  u64 c_tick;
+  u32 Division;
+  u8 number_of_tracks;
+  int TEMPO;
+} Midi;
+
+u64 hash_int(u64 x, u32 length) { return x % length; }
+
+void init_midi(Midi *midi) {
+  *midi = (Midi){0};
+  midi->events = (MidiEvent *)malloc(sizeof(MidiEvent) * 2);
+  assert(midi->events != NULL);
+  midi->capacity = 2;
+}
+
+void rehash(Midi *midi) {
+  midi->capacity = midi->capacity * 2;
+  MidiEvent *temp =
+      realloc(midi->events, midi->capacity * sizeof(*midi->events));
+  assert(temp != NULL);
+  MidiEvent *temp2 = midi->events;
+  midi->events = temp;
+  // loop through and transfer the event from temp2 to midi events
+  for (int i = 0;)
+}
+void append_event(MidiEvent *midi_event, EventValue event_value) {}
+
+void add_event_to_hashmap(Midi *midi, MidiEvent event) {
+  if (midi->size >= midi->capacity) {
+    rehash(midi);
+  }
+
+  int hash = hash_int(event.delta_time, midi->capacity);
+  if (midi->events[hash].occupied) {
+    if (event.delta_time == midi->events[hash].delta_time) {
+      append_event(midi->events, event.event_value[0]);
+    }
+  } else {
+    midi->events[hash] = event;
+    midi->events[hash].occupied = true;
+  }
+}
 
 char *file_read_string(int size, FILE *file) {
   char *buffer = malloc(size * sizeof(char));
@@ -157,7 +291,7 @@ u64 file_read_variable_length(FILE *file) {
  * the header, next 2 bytes the midi format, next 2 bytes number of tracks, next
  * 2 bytes, number of divisions, then a list of events*/
 
-void file_read_event(FILE *file, u64 delta_time, u32 status) {
+void file_read_event(FILE *file, u64 delta_time, u8 status) {
   if (status & 0xF0 == 0xF0) {
     if (status == 0xFF) {
 
@@ -223,11 +357,8 @@ void file_read_event(FILE *file, u64 delta_time, u32 status) {
       case SET_TEMPO: {
         u8 length = file_read_u8(file);
         assert(length == 0x03);
-        u8 MSB = file_read_u8(file);
-        u8 byte = file_read_u8(file);
-        u8 LSB = file_read_u8(file);
-        printf("%-20s %-20s MSB: %02x, byte: %02x, LSB: %02x\n", "META EVENT",
-               "SET TEMPO", MSB, byte, LSB);
+        u32 tempo = file_read_byte(length, file);
+        printf("%-20s %-20s tempo: %02x\n", "META EVENT", "SET TEMPO", tempo);
       } break;
       case SMPTE_OFFSET: {
         u8 length = file_read_u8(file);
@@ -379,7 +510,15 @@ void parse_midi(const char *file_path) {
   u32 header_size = file_read_u32(midi_file);
   u16 midi_format = file_read_u16(midi_file);
   u16 number_of_tracks = file_read_u16(midi_file);
+
+  // division -> how many ticks per quater note
   u16 division = file_read_u16(midi_file);
+
+  printf("HEADER %-20s\n", header_identifier);
+  printf("HEADER Size %04x\n", header_size);
+  printf("MIDI FORMAT  %04x\n", midi_format);
+  printf("NUMBER OF TRACKS  %04x\n", number_of_tracks);
+  printf("DIVISION  %04x\n", division);
 
   while ((ftell(midi_file) < file_len)) {
     char *identifier = file_read_string(4, midi_file);
@@ -437,8 +576,8 @@ void draw_midi_grid() {
 
 int main() {
   char midi_file_path[512] = {0};
-  const char *file_path = "../resources/Super Mario 64 - Medley.mid";
-  // const char *file_path = "../resources/no name.mid";
+  // const char *file_path = "../resources/Super Mario 64 - Medley.mid";
+  const char *file_path = "../resources/no name.mid";
   strcat(midi_file_path, GetApplicationDirectory());
   strcat(midi_file_path, file_path);
   printf("%s\n", midi_file_path);
