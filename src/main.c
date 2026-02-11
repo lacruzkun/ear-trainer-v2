@@ -33,6 +33,8 @@ typedef unsigned short u16;
 typedef unsigned char u8;
 bool channel[MIDI_CHANNEL][NUMBER_OF_NOTE];
 bool end_of_track = false;
+u64 current_frame = 0;
+u64 previous_frame = 0;
 
 typedef enum
 {
@@ -195,19 +197,21 @@ add_event_to_hashmap (Midi *m, u64 d, EventValue e)
     HASH_FIND (hh, m->events, &m->delta_time, sizeof (u64), s);
     if (s == NULL)
         {
-            EventValue *temp = malloc (sizeof (EventValue));
-            *temp = e;
             s = (MidiEvent *)malloc (sizeof (MidiEvent));
             s->delta_time = m->delta_time;
-            s->event_value = temp;
             s->size = 1;
+            s->event_value
+                = (EventValue *)malloc (sizeof (EventValue) * s->size);
+            s->event_value[s->size - 1] = e;
             HASH_ADD (hh, m->events, delta_time, sizeof (u64), s);
         }
-    else{
-        s->size += 1;
-        s->event_value = (EventValue *)malloc (sizeof (EventValue) * s->size);
-        s->event_value[s->size - 1] = *temp;
-    }
+    else
+        {
+            s->size += 1;
+            s->event_value
+                = (EventValue *)realloc (s->event_value, sizeof (EventValue) * s->size);
+            s->event_value[s->size - 1] = e;
+        }
 }
 char *
 file_read_string (int size, FILE *file)
@@ -662,11 +666,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                             = { .event_type = BASIC_EVENT,
                                 .event_id = basic_event,
                                 .value.note = { note, velocity } };
-                        add_event_to_hashmap (
-                            &midi, delta_time,
-                            (EventValue){ .event_type = BASIC_EVENT,
-                                          .event_id = basic_event,
-                                          .value.note = { note, velocity } });
+                        add_event_to_hashmap (&midi, delta_time, event_value);
                         printf ("%-20s %-20s  note: %02x velocity: %02x\n",
                                 "BASIC MIDI EVENT", "NOTE OFF", note,
                                 velocity);
@@ -680,11 +680,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                             = { .event_type = BASIC_EVENT,
                                 .event_id = basic_event,
                                 .value.note = { note, velocity } };
-                        add_event_to_hashmap (
-                            &midi, delta_time,
-                            (EventValue){ .event_type = BASIC_EVENT,
-                                          .event_id = basic_event,
-                                          .value.note = { note, velocity } });
+                        add_event_to_hashmap (&midi, delta_time, event_value);
                         printf ("%-20s %-20s  note: %02x velocity: %02x\n",
                                 "BASIC MIDI EVENT", "NOTE ON", note, velocity);
                     }
@@ -857,9 +853,13 @@ draw_midi_grid ()
 int
 main ()
 {
+  //
+  //  Midi Stuff
+  //
+  //
     char midi_file_path[512] = { 0 };
     // const char *file_path = "../resources/Super Mario 64 - Medley.mid";
-    const char *file_path = "../resources/no name.mid";
+    const char *file_path = "../resources/Super Mario 64 - Medley.mid";
     strcat (midi_file_path, GetApplicationDirectory ());
     strcat (midi_file_path, file_path);
     printf ("%s\n", midi_file_path);
@@ -876,22 +876,64 @@ main ()
     h->size = 1;
     HASH_ADD (hh, m, delta_time, sizeof (u64), h);
 
-    channel[4][48] = true;
-    channel[4][64] = true;
-    channel[4][55] = true;
 
     MidiEvent *s;
     for (s = midi.events; s != NULL; s = s->hh.next)
         {
             printf ("events from hashmap \n");
             printf ("delta time %llu\n", s->delta_time);
-            printf ("event id %02x\n", s->event_value->event_id);
+        for (int i = 0; i < s->size; i++){
+            printf ("event [%i] id %02x\n",i,  s->event_value[i].event_id);
+    }
             printf ("size of dynamic array %u\n", s->size);
         }
     int num_of_events = HASH_COUNT (midi.events);
     printf ("number of event is %i\n", num_of_events);
 
     bool quit = false;
+
+  //
+  //  Drawing Stuff
+  //
+  //
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
+    SetConfigFlags(FLAG_WINDOW_HIGHDPI);
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Ear Trainer");
+    InitAudioDevice();
+
+  SetTargetFPS(60);
+
+    while (!WindowShouldClose() && !quit) {
+
+      if (IsKeyPressed(KEY_ENTER)) {
+        quit = true;
+      }
+    previous_frame = current_frame;
+    current_frame += 1000;
+    MidiEvent *s;
+    for (u64 i = previous_frame; i < current_frame; i ++){
+      HASH_FIND (hh, midi.events, &i, sizeof (u64), s);
+      if (s != NULL)
+      {
+        for (int i = 0; i < s->size; i++){
+          switch (s->event_value[i].event_id){
+            case NOTE_OFF: {
+              channel[4][s->event_value[i].value.note.note] = false;
+            }break;
+            case NOTE_ON: {
+              channel[4][s->event_value[i].value.note.note] = true;
+            }break;
+            default: {
+              continue;
+            }
+          }
+        }
+
+      }
+
+    }
+      draw_midi_grid();
+    }
 
     return 0;
 }
