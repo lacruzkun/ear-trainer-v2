@@ -32,9 +32,15 @@ typedef unsigned long long u64;
 typedef unsigned short u16;
 typedef unsigned char u8;
 bool channel[MIDI_CHANNEL][NUMBER_OF_NOTE];
+Sound piano_sound[NUMBER_OF_NOTE];
+Sound bass_sound[NUMBER_OF_NOTE];
 bool end_of_track = false;
 u64 current_frame = 0;
 u64 previous_frame = 0;
+void
+LoadPiano(void);
+void
+LoadBass(void);
 
 typedef enum
 {
@@ -87,6 +93,8 @@ typedef struct
 {
     MidiEventType event_type;
     u8 event_id;
+    u8 program;
+  u8 channel;
     union
     {
         char *text;
@@ -324,7 +332,7 @@ file_read_variable_length (FILE *file)
  * next 2 bytes, number of divisions, then a list of events*/
 
 void
-file_read_event (FILE *file, u64 delta_time, u8 status)
+file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
 {
     printf ("%-20s %llx\n", "EVENT TIME", delta_time);
     if ((status & 0xF0) == 0xF0)
@@ -456,7 +464,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                                 assert (length == 0x01);
                                 u8 channel = file_read_u8 (file);
                                 EventValue event_value
-                                    = { .event_type = META_EVENT,
+                                    = { .program = *program_m, .event_type = META_EVENT,
                                         .event_id = type,
                                         .value.channel = channel };
                                 add_event_to_hashmap (&midi, delta_time,
@@ -478,6 +486,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                                                       event_value);
                                 printf ("%-20s %-20s\n", "META EVENT",
                                         "END OF TRACK");
+                                midi.delta_time = 0;
                                 end_of_track = true;
                             }
                             break;
@@ -663,7 +672,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                         u8 note = file_read_u8 (file);
                         u8 velocity = file_read_u8 (file);
                         EventValue event_value
-                            = { .event_type = BASIC_EVENT,
+                            = { .program = *program_m, .channel = channel,.event_type = BASIC_EVENT,
                                 .event_id = basic_event,
                                 .value.note = { note, velocity } };
                         add_event_to_hashmap (&midi, delta_time, event_value);
@@ -677,7 +686,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                         u8 note = file_read_u8 (file);
                         u8 velocity = file_read_u8 (file);
                         EventValue event_value
-                            = { .event_type = BASIC_EVENT,
+                            = { .program = *program_m, .channel = channel,.event_type = BASIC_EVENT,
                                 .event_id = basic_event,
                                 .value.note = { note, velocity } };
                         add_event_to_hashmap (&midi, delta_time, event_value);
@@ -690,7 +699,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                         u8 note = file_read_u8 (file);
                         u8 pressure = file_read_u8 (file);
                         EventValue event_value
-                            = { .event_type = BASIC_EVENT,
+                            = { .program = *program_m, .event_type = BASIC_EVENT,
                                 .event_id = basic_event,
                                 .value.poly_key = { note, pressure } };
                         add_event_to_hashmap (&midi, delta_time, event_value);
@@ -704,7 +713,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                         u8 control = file_read_u8 (file);
                         u8 value = file_read_u8 (file);
                         EventValue event_value
-                            = { .event_type = BASIC_EVENT,
+                            = { .program = *program_m, .event_type = BASIC_EVENT,
                                 .event_id = basic_event,
                                 .value.ctrl_change = { control, value } };
                         add_event_to_hashmap (&midi, delta_time, event_value);
@@ -716,8 +725,9 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                 case PROG_CHANGE:
                     {
                         u8 program = file_read_u8 (file);
+                        *program_m = program;
                         EventValue event_value = { .event_type = BASIC_EVENT,
-                                                   .event_id = basic_event,
+                                                   .program = *program_m, .event_id = basic_event,
                                                    .value.program = program };
                         add_event_to_hashmap (&midi, delta_time, event_value);
                         printf ("%-20s %-20s  program: %02x\n",
@@ -728,7 +738,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                     {
                         u8 pressure = file_read_u8 (file);
                         EventValue event_value
-                            = { .event_type = BASIC_EVENT,
+                            = { .program = *program_m, .event_type = BASIC_EVENT,
                                 .event_id = basic_event,
                                 .value.pressure = pressure };
                         add_event_to_hashmap (&midi, delta_time, event_value);
@@ -742,7 +752,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status)
                         u8 LSB = file_read_u8 (file);
                         u8 MSB = file_read_u8 (file);
                         EventValue event_value
-                            = { .event_type = BASIC_EVENT,
+                            = { .program = *program_m, .event_type = BASIC_EVENT,
                                 .event_id = basic_event,
                                 .value.pitch_wheel = { LSB, MSB } };
                         add_event_to_hashmap (&midi, delta_time, event_value);
@@ -788,6 +798,8 @@ parse_midi (const char *file_path)
             char *identifier = file_read_string (4, midi_file);
             u32 size = file_read_u32 (midi_file);
             long chunk_end = ftell (midi_file) + size;
+            u8 program_m = 0;
+
             if (strcmp (identifier, "MTrk") == 0)
                 {
                     printf ("MTrk\n\n\n");
@@ -812,7 +824,7 @@ parse_midi (const char *file_path)
                                     status = file_read_u8 (midi_file);
                                     running_status = status;
                                 }
-                            file_read_event (midi_file, delta_time, status);
+                            file_read_event (midi_file, delta_time, status, &program_m);
                         }
                 }
             else
@@ -859,7 +871,7 @@ main ()
   //
     char midi_file_path[512] = { 0 };
     // const char *file_path = "../resources/Super Mario 64 - Medley.mid";
-    const char *file_path = "../resources/Super Mario 64 - Medley.mid";
+    const char *file_path = "../resources/Sonic Generations - Seaside Hills (Modern).mid";
     strcat (midi_file_path, GetApplicationDirectory ());
     strcat (midi_file_path, file_path);
     printf ("%s\n", midi_file_path);
@@ -900,40 +912,379 @@ main ()
     SetConfigFlags(FLAG_WINDOW_HIGHDPI);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Ear Trainer");
     InitAudioDevice();
+  LoadPiano();
+  LoadBass();
 
-  SetTargetFPS(60);
 
     while (!WindowShouldClose() && !quit) {
 
       if (IsKeyPressed(KEY_ENTER)) {
         quit = true;
       }
-    previous_frame = current_frame;
-    current_frame += 1000;
-    MidiEvent *s;
-    for (u64 i = previous_frame; i < current_frame; i ++){
-      HASH_FIND (hh, midi.events, &i, sizeof (u64), s);
-      if (s != NULL)
-      {
-        for (int i = 0; i < s->size; i++){
-          switch (s->event_value[i].event_id){
-            case NOTE_OFF: {
-              channel[4][s->event_value[i].value.note.note] = false;
-            }break;
-            case NOTE_ON: {
-              channel[4][s->event_value[i].value.note.note] = true;
-            }break;
-            default: {
-              continue;
+      previous_frame = current_frame;
+      current_frame += 7;
+      MidiEvent *s;
+      for (u64 i = previous_frame; i < current_frame; i ++){
+        HASH_FIND (hh, midi.events, &i, sizeof (u64), s);
+        if (s != NULL)
+        {
+          for (int i = 0; i < s->size; i++){
+            switch (s->event_value[i].event_id){
+              case NOTE_OFF: {
+                if (s->event_value[i].channel == 6){
+                  channel[s->event_value[i].channel][s->event_value[i].value.note.note] = false;
+                  StopSound(bass_sound[s->event_value[i].value.note.note]);
+                }else {
+                  channel[s->event_value[i].channel][s->event_value[i].value.note.note] = false;
+                  StopSound(piano_sound[s->event_value[i].value.note.note]);
+                }
+              }break;
+              case NOTE_ON: {
+                if (s->event_value[i].channel == 6){
+                  channel[s->event_value[i].channel][s->event_value[i].value.note.note] = true;
+                  SetSoundVolume(piano_sound[s->event_value[i].value.note.note], (float)s->event_value[i].value.note.velocity/(float)0xFF);
+                  PlaySound(bass_sound[s->event_value[i].value.note.note]);
+                }else {
+                  channel[s->event_value[i].channel][s->event_value[i].value.note.note] = true;
+                  SetSoundVolume(piano_sound[s->event_value[i].value.note.note], (float)s->event_value[i].value.note.velocity/(float)0xFF + 0x0F);
+                  PlaySound(piano_sound[s->event_value[i].value.note.note]);
+                }
+              }break;
+              default: {
+                continue;
+              }
             }
           }
+
         }
 
       }
-
-    }
       draw_midi_grid();
     }
 
     return 0;
+}
+
+void
+LoadPiano(void)
+{
+    piano_sound[21] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/0-a.mp3"));
+    piano_sound[22] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/0-as.mp3"));
+    piano_sound[23] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/0-b.mp3"));
+    piano_sound[24] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-c.mp3"));
+    piano_sound[25] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-cs.mp3"));
+    piano_sound[26] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-d.mp3"));
+    piano_sound[27] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-ds.mp3"));
+    piano_sound[28] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-e.mp3"));
+    piano_sound[29] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-f.mp3"));
+    piano_sound[30] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-fs.mp3"));
+    piano_sound[31] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-g.mp3"));
+    piano_sound[32] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-gs.mp3"));
+    piano_sound[33] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-a.mp3"));
+    piano_sound[34] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-as.mp3"));
+    piano_sound[35] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/1-b.mp3"));
+    piano_sound[36] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-c.mp3"));
+    piano_sound[37] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-cs.mp3"));
+    piano_sound[38] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-d.mp3"));
+    piano_sound[39] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-ds.mp3"));
+    piano_sound[40] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-e.mp3"));
+    piano_sound[41] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-f.mp3"));
+    piano_sound[42] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-fs.mp3"));
+    piano_sound[43] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-g.mp3"));
+    piano_sound[44] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-gs.mp3"));
+    piano_sound[45] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-a.mp3"));
+    piano_sound[46] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-as.mp3"));
+    piano_sound[47] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/2-b.mp3"));
+    piano_sound[48] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-c.mp3"));
+    piano_sound[49] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-cs.mp3"));
+    piano_sound[50] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-d.mp3"));
+    piano_sound[51] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-ds.mp3"));
+    piano_sound[52] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-e.mp3"));
+    piano_sound[53] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-f.mp3"));
+    piano_sound[54] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-fs.mp3"));
+    piano_sound[55] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-g.mp3"));
+    piano_sound[56] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-gs.mp3"));
+    piano_sound[57] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-a.mp3"));
+    piano_sound[58] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-as.mp3"));
+    piano_sound[59] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/3-b.mp3"));
+    piano_sound[60] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-c.mp3"));
+    piano_sound[61] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-cs.mp3"));
+    piano_sound[62] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-d.mp3"));
+    piano_sound[63] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-ds.mp3"));
+    piano_sound[64] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-e.mp3"));
+    piano_sound[65] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-f.mp3"));
+    piano_sound[66] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-fs.mp3"));
+    piano_sound[67] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-g.mp3"));
+    piano_sound[68] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-gs.mp3"));
+    piano_sound[69] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-a.mp3"));
+    piano_sound[70] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-as.mp3"));
+    piano_sound[71] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/4-b.mp3"));
+    piano_sound[72] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-c.mp3"));
+    piano_sound[73] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-cs.mp3"));
+    piano_sound[74] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-d.mp3"));
+    piano_sound[75] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-ds.mp3"));
+    piano_sound[76] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-e.mp3"));
+    piano_sound[77] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-f.mp3"));
+    piano_sound[78] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-fs.mp3"));
+    piano_sound[79] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-g.mp3"));
+    piano_sound[80] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-gs.mp3"));
+    piano_sound[81] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-a.mp3"));
+    piano_sound[82] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-as.mp3"));
+    piano_sound[83] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/5-b.mp3"));
+    piano_sound[84] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-c.mp3"));
+    piano_sound[85] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-cs.mp3"));
+    piano_sound[86] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-d.mp3"));
+    piano_sound[87] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-ds.mp3"));
+    piano_sound[88] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-e.mp3"));
+    piano_sound[89] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-f.mp3"));
+    piano_sound[90] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-fs.mp3"));
+    piano_sound[91] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-g.mp3"));
+    piano_sound[92] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-gs.mp3"));
+    piano_sound[93] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-a.mp3"));
+    piano_sound[94] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-as.mp3"));
+    piano_sound[95] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/6-b.mp3"));
+    piano_sound[96] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-c.mp3"));
+    piano_sound[97] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-cs.mp3"));
+    piano_sound[98] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-d.mp3"));
+    piano_sound[99] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-ds.mp3"));
+    piano_sound[100] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-e.mp3"));
+    piano_sound[101] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-f.mp3"));
+    piano_sound[102] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-fs.mp3"));
+    piano_sound[103] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-g.mp3"));
+    piano_sound[104] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-gs.mp3"));
+    piano_sound[105] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-a.mp3"));
+    piano_sound[106] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-as.mp3"));
+    piano_sound[107] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/piano/7-b.mp3"));
+}
+
+void
+LoadBass(void){
+    bass_sound[21] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-a.mp3"));
+    SetSoundPitch(bass_sound[21], -2);
+    bass_sound[22] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-as.mp3"));
+    SetSoundPitch(bass_sound[22], -2);
+    bass_sound[23] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-b.mp3"));
+    SetSoundPitch(bass_sound[23], -2);
+    bass_sound[24] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-c.mp3"));
+    SetSoundPitch(bass_sound[24], -1);
+    bass_sound[25] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-cs.mp3"));
+    SetSoundPitch(bass_sound[25], -1);
+    bass_sound[26] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-d.mp3"));
+    SetSoundPitch(bass_sound[26], -1);
+    bass_sound[27] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-ds.mp3"));
+    SetSoundPitch(bass_sound[27], -1);
+    bass_sound[28] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-e.mp3"));
+    SetSoundPitch(bass_sound[28], -1);
+    bass_sound[29] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-f.mp3"));
+    SetSoundPitch(bass_sound[29], -1);
+    bass_sound[30] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-fs.mp3"));
+    SetSoundPitch(bass_sound[30], -1);
+    bass_sound[31] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-g.mp3"));
+    SetSoundPitch(bass_sound[31], -1);
+    bass_sound[32] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-gs.mp3"));
+    SetSoundPitch(bass_sound[32], -1);
+    bass_sound[33] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-a.mp3"));
+    SetSoundPitch(bass_sound[33], -1);
+    bass_sound[34] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-as.mp3"));
+    SetSoundPitch(bass_sound[34], -1);
+    bass_sound[35] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-b.mp3"));
+    SetSoundPitch(bass_sound[35], -1);
+    bass_sound[36] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-c.mp3"));
+    bass_sound[37] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-cs.mp3"));
+    bass_sound[38] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-d.mp3"));
+    bass_sound[39] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-ds.mp3"));
+    bass_sound[40] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-e.mp3"));
+    bass_sound[41] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-f.mp3"));
+    bass_sound[42] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-fs.mp3"));
+    bass_sound[43] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-g.mp3"));
+    bass_sound[44] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-gs.mp3"));
+    bass_sound[45] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-a.mp3"));
+    bass_sound[46] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-as.mp3"));
+    bass_sound[47] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-b.mp3"));
+    bass_sound[48] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-c.mp3"));
+    SetSoundPitch(bass_sound[48], 2);
+    bass_sound[49] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-cs.mp3"));
+    SetSoundPitch(bass_sound[49], 2);
+    bass_sound[50] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-d.mp3"));
+    SetSoundPitch(bass_sound[50], 2);
+    bass_sound[51] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-ds.mp3"));
+    SetSoundPitch(bass_sound[51], 2);
+    bass_sound[52] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-e.mp3"));
+    SetSoundPitch(bass_sound[52], 2);
+    bass_sound[53] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-f.mp3"));
+    SetSoundPitch(bass_sound[53], 2);
+    bass_sound[54] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-fs.mp3"));
+    SetSoundPitch(bass_sound[54], 2);
+    bass_sound[55] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-g.mp3"));
+    SetSoundPitch(bass_sound[55], 2);
+    bass_sound[56] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-gs.mp3"));
+    SetSoundPitch(bass_sound[56], 2);
+    bass_sound[57] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-a.mp3"));
+    SetSoundPitch(bass_sound[57], 2);
+    bass_sound[58] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-as.mp3"));
+    SetSoundPitch(bass_sound[58], 2);
+    bass_sound[59] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-b.mp3"));
+    SetSoundPitch(bass_sound[59], 2);
+    bass_sound[60] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-c.mp3"));
+    SetSoundPitch(bass_sound[60], 3);
+    bass_sound[61] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-cs.mp3"));
+    SetSoundPitch(bass_sound[61], 3);
+    bass_sound[62] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-d.mp3"));
+    SetSoundPitch(bass_sound[62], 3);
+    bass_sound[63] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-ds.mp3"));
+    SetSoundPitch(bass_sound[63], 3);
+    bass_sound[64] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-e.mp3"));
+    SetSoundPitch(bass_sound[64], 3);
+    bass_sound[65] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-f.mp3"));
+    SetSoundPitch(bass_sound[65], 3);
+    bass_sound[66] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-fs.mp3"));
+    SetSoundPitch(bass_sound[66], 3);
+    bass_sound[67] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-g.mp3"));
+    SetSoundPitch(bass_sound[67], 3);
+    bass_sound[68] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-gs.mp3"));
+    SetSoundPitch(bass_sound[68], 3);
+    bass_sound[69] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-a.mp3"));
+    SetSoundPitch(bass_sound[69], 3);
+    bass_sound[70] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-as.mp3"));
+    SetSoundPitch(bass_sound[70], 3);
+    bass_sound[71] = LoadSound (TextFormat (
+        "%s/%s", BIN_DIRECTORY, "../resources/instrument/bass/2-b.mp3"));
+    SetSoundPitch(bass_sound[71], 3);
 }
