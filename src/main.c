@@ -5,12 +5,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <math.h>
 #include <uthash.h>
 #include <wchar.h>
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 #define BIN_DIRECTORY GetApplicationDirectory ()
+#define FPS 60
 
 #define MIDI_CHANNEL 16
 #define NUMBER_OF_NOTE 128
@@ -27,16 +30,15 @@
 
 //
 
-typedef unsigned int u32;
-typedef unsigned long long u64;
-typedef unsigned short u16;
-typedef unsigned char u8;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef uint16_t u16;
+typedef uint8_t u8;
 bool channel[MIDI_CHANNEL][NUMBER_OF_NOTE];
 Sound piano_sound[NUMBER_OF_NOTE];
 Sound bass_sound[NUMBER_OF_NOTE];
 bool end_of_track = false;
-u64 current_frame = 0;
-u64 previous_frame = 0;
+
 void LoadPiano (void);
 void LoadBass (void);
 
@@ -189,9 +191,9 @@ typedef struct
   u32 capacity;
   u32 delta_time;
   u64 c_tick;
-  u32 Division;
+  u32 division;
   u8 number_of_tracks;
-  int TEMPO;
+  int tempo;
 } Midi;
 
 Midi midi = { 0 };
@@ -333,7 +335,7 @@ file_read_variable_length (FILE *file)
 void
 file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
 {
-  printf ("%-20s %llx\n", "EVENT TIME", delta_time);
+  printf ("%-20s %lx\n", "EVENT TIME", delta_time);
   if ((status & 0xF0) == 0xF0)
     {
       if (status == 0xFF)
@@ -471,7 +473,6 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
             case END_OF_TRACK:
               {
                 u8 length = file_read_u8 (file);
-                printf ("%x \n", ftell (file));
                 assert (length == 0x00);
                 EventValue event_value = { .event_type = META_EVENT,
                                            .event_id = type,
@@ -493,6 +494,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                 add_event_to_hashmap (&midi, delta_time, event_value);
                 printf ("%-20s %-20s tempo: %02x\n", "META EVENT", "SET TEMPO",
                         tempo);
+                midi.tempo = tempo;
               }
               break;
             case SMPTE_OFFSET:
@@ -525,7 +527,6 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
             case TIME_SIGNATURE:
               {
                 u8 length = file_read_u8 (file);
-                printf ("%x \n", ftell (file));
                 assert (length == 0x04);
                 u8 num = file_read_u8 (file);
                 u8 den = file_read_u8 (file);
@@ -585,7 +586,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
               {
                 u8 length = file_read_u8 (file);
                 u64 data = file_read_byte (length, file);
-                printf ("%-20s %-20s  data: %02llx\n", "COMMON SYSTEM EVENT",
+                printf ("%-20s %-20s  data: %02lx\n", "COMMON SYSTEM EVENT",
                         "SYS_EXCLUSIVE", data);
               }
               break;
@@ -770,6 +771,7 @@ parse_midi (const char *file_path)
   printf ("MIDI FORMAT  %04x\n", midi_format);
   printf ("NUMBER OF TRACKS  %04x\n", number_of_tracks);
   printf ("DIVISION  %04x\n", division);
+  midi.division = division;
 
   while ((ftell (midi_file) < file_len))
     {
@@ -785,9 +787,6 @@ parse_midi (const char *file_path)
           while ((ftell (midi_file) < chunk_end))
             {
               u64 delta_time = file_read_variable_length (midi_file);
-              // printf("Current cursor byte %i\n",
-              // ftell(midi_file)); printf("chunk end  byte
-              // %i\n", chunk_end);
 
               u8 next_byte = file_peek_u8 (midi_file);
 
@@ -846,36 +845,13 @@ main ()
   //
   char midi_file_path[512] = { 0 };
   // const char *file_path = "../resources/Super Mario 64 - Medley.mid";
-  const char *file_path = "../resources/Sonic Colors - Reach for the Stars.mid";
+  const char *file_path
+      = "../resources/Sonic Generations - Seaside Hills (Modern).mid";
   strcat (midi_file_path, GetApplicationDirectory ());
   strcat (midi_file_path, file_path);
   printf ("%s\n", midi_file_path);
-  parse_midi (midi_file_path);
-  MidiEvent *m = NULL;
-  MidiEvent *h = malloc (sizeof (MidiEvent));
-  h->delta_time = 10;
-  EventValue e = {
-    .event_type = BASIC_EVENT,
-    .event_id = 0xF3,
-    .value.text = "Hello",
-  };
-  h->event_value = &e;
-  h->size = 1;
-  HASH_ADD (hh, m, delta_time, sizeof (u64), h);
+  parse_midi(midi_file_path);
 
-  MidiEvent *s;
-  for (s = midi.events; s != NULL; s = s->hh.next)
-    {
-      printf ("events from hashmap \n");
-      printf ("delta time %llu\n", s->delta_time);
-      for (int i = 0; i < s->size; i++)
-        {
-          printf ("event [%i] id %02x\n", i, s->event_value[i].event_id);
-        }
-      printf ("size of dynamic array %u\n", s->size);
-    }
-  int num_of_events = HASH_COUNT (midi.events);
-  printf ("number of event is %i\n", num_of_events);
 
   bool quit = false;
 
@@ -890,7 +866,9 @@ main ()
   LoadPiano ();
   // LoadBass ();
 
-  SetTargetFPS(60);
+  double current_frame = 0;
+  double previous_frame = 0;
+  double ticks_per_second = (midi.division * 1000000.0) / midi.tempo;
 
   while (!WindowShouldClose () && !quit)
     {
@@ -900,56 +878,52 @@ main ()
           quit = true;
         }
       previous_frame = current_frame;
-      current_frame += 5;
+      float dt = GetFrameTime ();
+      current_frame += dt * ticks_per_second;
       MidiEvent *s;
-      for (u64 i = previous_frame; i < current_frame; i++)
+      u64 start_tick = ceil(previous_frame);
+      u64 end_tick = (u64)floor(current_frame);
+      for (u64 tick = start_tick; tick <= end_tick; tick++)
         {
-          HASH_FIND (hh, midi.events, &i, sizeof (u64), s);
-          if (s != NULL)
+          HASH_FIND (hh, midi.events, &tick, sizeof (u64), s);
+          if (s == NULL)
             {
-              for (int i = 0; i < s->size; i++)
+              continue;
+            }
+          for (u32 index = 0; index < s->size; index++)
+            {
+              EventValue ev = s->event_value[index];
+              switch (ev.event_id)
                 {
-                  switch (s->event_value[i].event_id)
-                    {
-                    case NOTE_OFF:
+                case NOTE_OFF:
+                  {
+                    int note = ev.value.note.note;
+                    channel[ev.channel][note] = false;
+                    StopSound (piano_sound[note]);
+                  }
+                  break;
+                case NOTE_ON:
+                  {
+                    int note = ev.value.note.note;
+                    int velocity = ev.value.note.velocity;
+                    channel[ev.channel][note] = true;
+                    if (velocity == 0)
                       {
-                        channel[s->event_value[i].channel]
-                               [s->event_value[i].value.note.note]
-                            = false;
-                        StopSound (
-                            piano_sound[s->event_value[i].value.note.note]);
+                        channel[ev.channel][note] = false;
+                        StopSound (piano_sound[note]);
                       }
-                      break;
-                    case NOTE_ON:
+                    else
                       {
-                        channel[s->event_value[i].channel]
-                               [s->event_value[i].value.note.note]
-                            = true;
-                        if (s->event_value[i].value.note.velocity == 0)
-                          {
-                            channel[s->event_value[i].channel]
-                                   [s->event_value[i].value.note.note]
-                                = false;
-                            StopSound (piano_sound[s->event_value[i]
-                                                       .value.note.note]);
-                          }
-                        else
-                          {
-                            SetSoundVolume (
-                                piano_sound[s->event_value[i].value.note.note],
-                                (float)s->event_value[i].value.note.velocity
-                                        / (float)0xFF
-                                    + 0x0F);
-                            PlaySound (piano_sound[s->event_value[i]
-                                                       .value.note.note]);
-                          }
+                        SetSoundVolume (piano_sound[note],
+                                        (float)velocity / (float)0x7F);
+                        PlaySound (piano_sound[note]);
                       }
-                      break;
-                    default:
-                      {
-                        continue;
-                      }
-                    }
+                  }
+                  break;
+                default:
+                  {
+                    continue;
+                  }
                 }
             }
         }
