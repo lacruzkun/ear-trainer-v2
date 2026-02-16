@@ -9,3 +9,6 @@ ear_trainer: src/main.c
 
 test_ui: src/test_ui.c
 	$(CC) $(CFLAGS) -Llib -Iinclude src/test_ui.c -o build/test_ui $(LIBS)
+
+test_soundfont: src/test_soundfont.c
+	$(CC) $(CFLAGS) -Llib -Iinclude src/test_soundfont.c -o build/test_soundfont $(LIBS)
