@@ -12,3 +12,6 @@ test_ui: src/test_ui.c
 
 test_soundfont: src/test_soundfont.c
 	$(CC) $(CFLAGS) -Llib -Iinclude src/test_soundfont.c -o build/test_soundfont $(LIBS)
+
+test_render: src/test_render.c
+	$(CC) $(CFLAGS) -Llib -Iinclude src/test_render.c -o build/test_render $(LIBS)

@@ -1,9 +1,10 @@
 #include <uthash.h>
 #include <assert.h>
+#include <raylib.h>
 #include "defines.h"
 
-#define WINDOW_WIDTH 1280
-#define WINDOW_HEIGHT 720
+#define WINDOW_WIDTH GetScreenWidth()
+#define WINDOW_HEIGHT GetScreenHeight()
 #define BIN_DIRECTORY GetApplicationDirectory ()
 #define FPS 60
 
@@ -334,7 +335,7 @@ file_read_variable_length (FILE *file)
 void
 file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
 {
-  printf ("%-20s %lx\n", "EVENT TIME", delta_time);
+  // printf ("%-20s %lx\n", "EVENT TIME", delta_time);
   if ((status & 0xF0) == 0xF0)
     {
       if (status == 0xFF)
@@ -352,8 +353,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.text = data };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s text: %-20s\n", "META EVENT",
-                        "TEXT EVENT", data);
+                // printf ("%-20s %-20s text: %-20s\n", "META EVENT",
+                        // "TEXT EVENT", data);
               }
               break;
             case COPYRIGHT:
@@ -364,8 +365,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.text = data };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s text: %-20s\n", "META EVENT", "COPYRIGHT",
-                        data);
+                // printf ("%-20s %-20s text: %-20s\n", "META EVENT", "COPYRIGHT",
+                        // data);
               }
               break;
             case TRACK_NAME:
@@ -376,8 +377,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.text = data };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s text: %-20s\n", "META EVENT",
-                        "TRACK NAME", data);
+                // printf ("%-20s %-20s text: %-20s\n", "META EVENT",
+                        // "TRACK NAME", data);
               }
               break;
             case INST_NAME:
@@ -388,8 +389,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.text = data };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s text: %-20s\n", "META EVENT",
-                        "INSTURMENT NAME", data);
+                // printf ("%-20s %-20s text: %-20s\n", "META EVENT",
+                        // "INSTURMENT NAME", data);
               }
               break;
             case LYRIC:
@@ -400,8 +401,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.text = data };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s text: %-20s\n", "META EVENT", "LYRICS",
-                        data);
+                // printf ("%-20s %-20s text: %-20s\n", "META EVENT", "LYRICS",
+                        // data);
               }
               break;
             case MARKER:
@@ -412,8 +413,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.text = data };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s text: %-20s\n", "META EVENT", "MARKER",
-                        data);
+                // printf ("%-20s %-20s text: %-20s\n", "META EVENT", "MARKER",
+                        // data);
               }
               break;
             case CUE_POINT:
@@ -424,8 +425,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.text = data };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s text: %-20s\n", "META EVENT", "CUE POINT",
-                        data);
+                // printf ("%-20s %-20s text: %-20s\n", "META EVENT", "CUE POINT",
+                        // data);
               }
               break;
             case SEQUENCE_NUMBER:
@@ -437,8 +438,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.number = 1 };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s number: %s\n", "META EVENT",
-                        "SEQUENCE NUMBER", number);
+                // printf ("%-20s %-20s number: %s\n", "META EVENT",
+                        // "SEQUENCE NUMBER", number);
               }
               break;
             case CHANNEL_PREFIX:
@@ -451,8 +452,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.channel = channel };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s channel: %02x\n", "META EVENT",
-                        "CHANNEL PREFIX", channel);
+                // printf ("%-20s %-20s channel: %02x\n", "META EVENT",
+                        // "CHANNEL PREFIX", channel);
               }
               break;
             case MIDI_PORT:
@@ -465,8 +466,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.channel = port };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s channel: %02x\n", "META EVENT",
-                        "MIDI PORT", port);
+                // printf ("%-20s %-20s channel: %02x\n", "META EVENT",
+                        // "MIDI PORT", port);
               }
               break;
             case END_OF_TRACK:
@@ -477,7 +478,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value = { 0 } };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s\n", "META EVENT", "END OF TRACK");
+                // printf ("%-20s %-20s\n", "META EVENT", "END OF TRACK");
                 midi.delta_time = 0;
                 end_of_track = true;
               }
@@ -491,8 +492,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.tempo = tempo };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s tempo: %02x\n", "META EVENT", "SET TEMPO",
-                        tempo);
+                // printf ("%-20s %-20s tempo: %02x\n", "META EVENT", "SET TEMPO",
+                        // tempo);
                 midi.tempo = tempo;
               }
               break;
@@ -516,11 +517,11 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            } };
 
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s hour: %02x, minute: "
-                        "%02x, sec: %02x, frame: %02x, "
-                        "frac: %02x\n",
-                        "META EVENT", "SMPTE_OFFSET", hour, minute, sec, frame,
-                        frac);
+                // printf ("%-20s %-20s hour: %02x, minute: "
+                        // "%02x, sec: %02x, frame: %02x, "
+                        // "frac: %02x\n",
+                        // "META EVENT", "SMPTE_OFFSET", hour, minute, sec, frame,
+                        // frac);
               }
               break;
             case TIME_SIGNATURE:
@@ -541,9 +542,9 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            } };
 
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s num: %02x, den: %02x, "
-                        "clock: %02x, byte: %02x\n",
-                        "META EVENT", "TIME_SIGNATURE", num, den, clock, byte);
+                // printf ("%-20s %-20s num: %02x, den: %02x, "
+                        // "clock: %02x, byte: %02x\n",
+                        // "META EVENT", "TIME_SIGNATURE", num, den, clock, byte);
               }
               break;
             case KEY_SIGNATURE:
@@ -556,8 +557,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.key_signature = { sf, mi } };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s sf: %02x, mi: %02x\n", "META EVENT",
-                        "KEY_SIGNATURE", sf, mi);
+                // printf ("%-20s %-20s sf: %02x, mi: %02x\n", "META EVENT",
+                        // "KEY_SIGNATURE", sf, mi);
               }
               break;
             case DEVICE_PORT_NAME:
@@ -568,8 +569,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                            .event_id = type,
                                            .value.text = data };
                 add_event_to_hashmap (&midi, delta_time, event_value);
-                printf ("%-20s %-20s Device port name: %-20s\n", "META EVENT",
-                        "DEVICE_PORT_NAME", data);
+                // printf ("%-20s %-20s Device port name: %-20s\n", "META EVENT",
+                        // "DEVICE_PORT_NAME", data);
               }
               break;
             }
@@ -585,8 +586,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
               {
                 u8 length = file_read_u8 (file);
                 u64 data = file_read_byte (length, file);
-                printf ("%-20s %-20s  data: %02lx\n", "COMMON SYSTEM EVENT",
-                        "SYS_EXCLUSIVE", data);
+                // printf ("%-20s %-20s  data: %02lx\n", "COMMON SYSTEM EVENT",
+                        // "SYS_EXCLUSIVE", data);
               }
               break;
             case TIME_CODE_QUARTER_FRAME:
@@ -596,9 +597,9 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                 u8 data = file_read_u8 (file);
                 u8 type = data >> 4;
                 u8 value = data & 0x0F;
-                printf ("%-20s %-20s  type: %02x value: %02x\n",
-                        "COMMON SYSTEM EVENT", "TIME_CODE_QUARTER_FRAME", type,
-                        value);
+                // printf ("%-20s %-20s  type: %02x value: %02x\n",
+                        // "COMMON SYSTEM EVENT", "TIME_CODE_QUARTER_FRAME", type,
+                        // value);
               }
               break;
             case SONG_POSITION_POINTER:
@@ -607,9 +608,9 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                 assert (length == 0x02);
                 u8 LSB = file_read_u8 (file);
                 u8 MSB = file_read_u8 (file);
-                printf ("%-20s %-20s  LSB: %02x MSB: %02x\n",
-                        "COMMON SYSTEM EVENT", "SONG_POSITION_POINTER", LSB,
-                        MSB);
+                // printf ("%-20s %-20s  LSB: %02x MSB: %02x\n",
+                        // "COMMON SYSTEM EVENT", "SONG_POSITION_POINTER", LSB,
+                        // MSB);
               }
               break;
             case SONG_SELECT:
@@ -617,8 +618,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                 u8 length = file_read_u8 (file);
                 assert (length == 0x01);
                 u8 data = file_read_u8 (file);
-                printf ("%-20s %-20s  data: %02x\n", "COMMON SYSTEM EVENT",
-                        "SONG_SELECT", data);
+                // printf ("%-20s %-20s  data: %02x\n", "COMMON SYSTEM EVENT",
+                        // "SONG_SELECT", data);
               }
               break;
             case TUNE_REQUEST:
@@ -640,7 +641,7 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
     {
       // basic events
       u8 channel = status & 0x0F;
-      printf ("%-20s %02x\n", "CHANNEL", channel);
+      // printf ("%-20s %02x\n", "CHANNEL", channel);
       u8 basic_event = status >> 4;
       switch (basic_event)
         {
@@ -655,8 +656,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                        .event_id = basic_event,
                                        .value.note = { note, velocity } };
             add_event_to_hashmap (&midi, delta_time, event_value);
-            printf ("%-20s %-20s  note: %02x velocity: %02x\n",
-                    "BASIC MIDI EVENT", "NOTE OFF", note, velocity);
+            // printf ("%-20s %-20s  note: %02x velocity: %02x\n",
+                    // "BASIC MIDI EVENT", "NOTE OFF", note, velocity);
           }
           break;
         case NOTE_ON:
@@ -669,8 +670,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                        .event_id = basic_event,
                                        .value.note = { note, velocity } };
             add_event_to_hashmap (&midi, delta_time, event_value);
-            printf ("%-20s %-20s  note: %02x velocity: %02x\n",
-                    "BASIC MIDI EVENT", "NOTE ON", note, velocity);
+            // printf ("%-20s %-20s  note: %02x velocity: %02x\n",
+                    // "BASIC MIDI EVENT", "NOTE ON", note, velocity);
           }
           break;
         case POLY_KEY_PRESSURE:
@@ -682,8 +683,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                        .event_id = basic_event,
                                        .value.poly_key = { note, pressure } };
             add_event_to_hashmap (&midi, delta_time, event_value);
-            printf ("%-20s %-20s  note: %02x pressure: %02x\n",
-                    "BASIC MIDI EVENT", "POLY_KEY_PRESSURE", note, pressure);
+            // printf ("%-20s %-20s  note: %02x pressure: %02x\n",
+                    // "BASIC MIDI EVENT", "POLY_KEY_PRESSURE", note, pressure);
           }
           break;
         case CTRL_CHANGE:
@@ -696,8 +697,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                     .event_id = basic_event,
                     .value.ctrl_change = { control, value } };
             add_event_to_hashmap (&midi, delta_time, event_value);
-            printf ("%-20s %-20s  control: %02x value: %02x\n",
-                    "BASIC MIDI EVENT", "CTRL_CHANGE", control, value);
+            // printf ("%-20s %-20s  control: %02x value: %02x\n",
+                    // "BASIC MIDI EVENT", "CTRL_CHANGE", control, value);
           }
           break;
         case PROG_CHANGE:
@@ -709,8 +710,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                        .event_id = basic_event,
                                        .value.program = program };
             add_event_to_hashmap (&midi, delta_time, event_value);
-            printf ("%-20s %-20s  program: %02x\n", "BASIC MIDI EVENT",
-                    "PROG_CHANGE", program);
+            // printf ("%-20s %-20s  program: %02x\n", "BASIC MIDI EVENT",
+                    // "PROG_CHANGE", program);
           }
           break;
         case CHANNEL_PRESSURE:
@@ -721,8 +722,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                        .event_id = basic_event,
                                        .value.pressure = pressure };
             add_event_to_hashmap (&midi, delta_time, event_value);
-            printf ("%-20s %-20s  pressure: %02x\n", "BASIC MIDI EVENT",
-                    "CHANNEL_PRESSURE", pressure);
+            // printf ("%-20s %-20s  pressure: %02x\n", "BASIC MIDI EVENT",
+                    // "CHANNEL_PRESSURE", pressure);
           }
           break;
         case PITCH_WHEEL:
@@ -734,8 +735,8 @@ file_read_event (FILE *file, u64 delta_time, u8 status, u8 *program_m)
                                        .event_id = basic_event,
                                        .value.pitch_wheel = { LSB, MSB } };
             add_event_to_hashmap (&midi, delta_time, event_value);
-            printf ("%-20s %-20s  LSB: %02x MSB: %02x\n", "BASIC MIDI EVENT",
-                    "PITCH_WHEEL", LSB, MSB);
+            // printf ("%-20s %-20s  LSB: %02x MSB: %02x\n", "BASIC MIDI EVENT",
+                    // "PITCH_WHEEL", LSB, MSB);
           }
           break;
         default:
@@ -751,7 +752,7 @@ parse_midi (const char *file_path)
   midi_file = fopen (file_path, "rb");
   if (midi_file == NULL)
     {
-      printf ("Cannot open file %s\n", file_path);
+      // printf ("Cannot open file %s\n", file_path);
     }
 
   fseek (midi_file, 0, SEEK_END);
@@ -765,11 +766,11 @@ parse_midi (const char *file_path)
   // division -> how many ticks per quater note
   u16 division = file_read_u16 (midi_file);
 
-  printf ("HEADER %-20s\n", header_identifier);
-  printf ("HEADER Size %04x\n", header_size);
-  printf ("MIDI FORMAT  %04x\n", midi_format);
-  printf ("NUMBER OF TRACKS  %04x\n", number_of_tracks);
-  printf ("DIVISION  %04x\n", division);
+  // printf ("HEADER %-20s\n", header_identifier);
+  // printf ("HEADER Size %04x\n", header_size);
+  // printf ("MIDI FORMAT  %04x\n", midi_format);
+  // printf ("NUMBER OF TRACKS  %04x\n", number_of_tracks);
+  // printf ("DIVISION  %04x\n", division);
   midi.division = division;
 
   while ((ftell (midi_file) < file_len))
@@ -781,7 +782,7 @@ parse_midi (const char *file_path)
 
       if (strcmp (identifier, "MTrk") == 0)
         {
-          printf ("MTrk\n\n\n");
+          // printf ("MTrk\n\n\n");
           u8 running_status = 0;
           while ((ftell (midi_file) < chunk_end))
             {
